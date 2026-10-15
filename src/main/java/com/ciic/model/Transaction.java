@@ -9,16 +9,26 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class Transaction {
-    private Long id;
-    private String transactionReference;
+    private Long transactionId;
     private String accountNumber;
-    private String transactionType;
+    private TransactionType transactionType;
     private BigDecimal amount;
-    private BigDecimal balance;
-    private String referenceAccount;
+    private BigDecimal balanceAfter;
+    private String referenceNumber;
+    private String remarks;
     private LocalDateTime createdAt;
+
+    public Transaction(String accountNumber, TransactionType transactionType,
+                       BigDecimal amount, BigDecimal balanceAfter,
+                       String referenceNumber, String remarks) {
+        this.accountNumber = accountNumber;
+        this.transactionType = transactionType;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.referenceNumber = referenceNumber;
+        this.remarks = remarks;
+    }
 }

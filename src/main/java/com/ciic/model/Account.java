@@ -9,7 +9,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 
@@ -19,4 +18,12 @@ public class Account {
     private String accountName;
     private BigDecimal balance;
     private LocalDateTime createdAt;
+
+    public Account(String accountNumber, String accountName, BigDecimal balance) {
+        this.accountNumber = accountNumber;
+        this.accountName = accountName;
+        this.balance = balance;
+    }
+
 }
+

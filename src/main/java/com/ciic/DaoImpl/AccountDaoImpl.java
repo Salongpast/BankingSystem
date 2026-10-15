@@ -1,3 +1,4 @@
+
 package com.ciic.DaoImpl;
 
 import com.ciic.dao.AccountDao;
@@ -5,77 +6,110 @@ import com.ciic.database.DatabaseConnection;
 import com.ciic.model.Account;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.logging.Level;
 
 public class AccountDaoImpl implements AccountDao {
 
-    @Override
-    public boolean exists(String accountNumber) {
-        String sql = "SELECT 1 FROM accounts WHERE account_number = ?";
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, accountNumber);
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next();
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Error checking account existence", e);
-        }
-    }
+    private static final String INSERT_ACCOUNT =
+            "INSERT INTO accounts (account_number, account_name, balance) VALUES (?, ?, ?)";
+
+    private static final String FIND_BY_ACCOUNT_NUMBER =
+            "SELECT id, account_number, account_name, balance, created_at " +
+                    "FROM accounts WHERE account_number = ?";
+
+    private static final String FIND_ALL =
+            "SELECT id, account_number, account_name, balance, created_at " +
+                    "FROM accounts ORDER BY id";
+
+    private static final String UPDATE_BALANCE =
+            "UPDATE accounts SET balance = ? WHERE account_number = ?";
 
     @Override
-    public Account create(String accountNumber, String accountName, BigDecimal initialDeposit) {
-        String sql = "INSERT INTO accounts (account_number, account_name, balance) VALUES (?, ?, ?)";
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, accountNumber);
-            statement.setString(2, accountName);
-            statement.setBigDecimal(3, initialDeposit);
-            statement.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Database error creating account", e);
-        }
-        return findByAccountNumber(accountNumber);
-    }
+    public void createAccount(Account account) throws SQLException{
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement preparedStatement = conn.prepareStatement(INSERT_ACCOUNT, Statement.RETURN_GENERATED_KEYS)) {
 
-    @Override
-    public Account findByAccountNumber(String accountNumber) {
-        String sql = "SELECT id, account_number, account_name, balance, created_at FROM accounts WHERE account_number = ?";
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, accountNumber);
-            try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) {
-                    return mapAccount(result);
+            preparedStatement.setString(1, account.getAccountNumber());
+            preparedStatement.setString(2, account.getAccountName());
+            preparedStatement.setBigDecimal(3, account.getBalance());
+            preparedStatement.executeUpdate();
+
+            // Read back the auto-generated PK and assign it to the domain object
+            try (ResultSet keys = preparedStatement.getGeneratedKeys()) {
+                if (keys.next()) {
+                    account.setId(keys.getLong(1));
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Error fetching account.",e);
+            throw new RuntimeException("Failed to create account", e);
         }
-        return null;
     }
 
     @Override
-    public List<Account> findAll() throws SQLException {
-        List<Account> accounts = new ArrayList<>();
-        String sql = "SELECT id, account_number, account_name, balance, created_at FROM accounts ORDER BY id";
+    public Optional<Account> findByAccountNumber(String accountNumber) {
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet result = statement.executeQuery()) {
+             PreparedStatement preparedStatement =
+                     connection.prepareStatement(FIND_BY_ACCOUNT_NUMBER)) {
+
+            preparedStatement.setString(1, accountNumber);
+
+            try (ResultSet result = preparedStatement.executeQuery()) {
+                if (result.next()) {
+                    return Optional.of(mapRow(result));
+                }
+                return Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Error fetching account.", e);
+        }
+    }
+
+    @Override
+    public List<Account> findAllAccounts() throws SQLException {
+        List<Account> accounts = new ArrayList<>();
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement preparedStatement = connection.prepareStatement(FIND_ALL);
+             ResultSet result = preparedStatement.executeQuery()) {
+
             while (result.next()) {
-                accounts.add(mapAccount(result));
+                accounts.add(mapRow(result));
+            }
+            return accounts;
+        }catch (SQLException e){
+            throw new RuntimeException("Failed to list all accounts", e);
+        }
+    }
+
+    @Override
+    public void updateBalance(String accountNumber, BigDecimal balance) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            updateBalance(connection, accountNumber, balance);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to update balance",e);
+        }
+    }
+
+    @Override
+    public void updateBalance(Connection conn, String accountNumber, BigDecimal balance)
+            throws SQLException {
+
+        try (PreparedStatement ps = conn.prepareStatement(UPDATE_BALANCE)) {
+            ps.setBigDecimal(1, balance);
+            ps.setString(2, accountNumber);
+            int rowsAffected = ps.executeUpdate();
+
+            if (rowsAffected == 0) {
+                throw new SQLException("Balance update affected 0 rows for account: " + accountNumber);
             }
         }
-        return accounts;
     }
 
-    @Override
-    public Account mapAccount(ResultSet result) throws SQLException{
+    private Account mapRow(ResultSet result) throws SQLException {
         return new Account(
                 result.getLong("id"),
                 result.getString("account_number"),
