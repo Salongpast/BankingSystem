@@ -21,7 +21,8 @@ public class TransactionService {
     private final TransactionDao transactionDao;
 
     public TransactionService() {
-        this(new AccountDaoImpl(), new TransactionDaoImpl());
+        this.accountDao = new AccountDaoImpl();
+        this.transactionDao = new TransactionDaoImpl();
     }
 
     public TransactionService(AccountDao accountDao, TransactionDao transactionDao) {
@@ -35,52 +36,75 @@ public class TransactionService {
         Account account = requireAccount(accountNumber);
         BigDecimal newBalance = account.getBalance().add(amount);
         return recordBalanceChange(account, newBalance, amount,
-                TransactionType.DEPOSIT, "Cash deposit");
+                TransactionType.DEPOSIT, "Cash deposit", null);
     }
 
     public Transaction withdraw(String accountNumber, BigDecimal amount)
             throws SQLException {
         validateAmount(amount);
         Account account = requireAccount(accountNumber);
+
         if (account.getBalance().compareTo(amount) < 0) {
             throw new IllegalArgumentException("Insufficient balance.");
         }
+
         BigDecimal newBalance = account.getBalance().subtract(amount);
         return recordBalanceChange(account, newBalance, amount,
-                TransactionType.WITHDRAW, "Cash withdrawal");
+                TransactionType.WITHDRAW, "Cash withdrawal", null);
     }
 
     public void transfer(String fromAccountNumber, String toAccountNumber,
                          BigDecimal amount) throws SQLException {
         validateAmount(amount);
+
         if (fromAccountNumber == null || toAccountNumber == null
                 || fromAccountNumber.trim().isEmpty()
                 || toAccountNumber.trim().isEmpty()) {
             throw new IllegalArgumentException("Both account numbers are required.");
         }
-        if (fromAccountNumber.trim().equals(toAccountNumber.trim())) {
-            throw new IllegalArgumentException("Source and destination accounts must be different.");
+
+        fromAccountNumber = fromAccountNumber.trim();
+        toAccountNumber = toAccountNumber.trim();
+
+        if (fromAccountNumber.equals(toAccountNumber)) {
+            throw new IllegalArgumentException(
+                    "Source and destination accounts must be different.");
         }
 
         Account from = requireAccount(fromAccountNumber);
         Account to = requireAccount(toAccountNumber);
+
         if (from.getBalance().compareTo(amount) < 0) {
             throw new IllegalArgumentException("Insufficient balance.");
         }
 
         BigDecimal fromBalance = from.getBalance().subtract(amount);
         BigDecimal toBalance = to.getBalance().add(amount);
-        // transaction_reference is UNIQUE, so each side of a transfer needs its own number.
-        Transaction outgoing = new Transaction(from.getAccountNumber(),
-                TransactionType.TRANSFER_OUT, amount, fromBalance, ReferenceNumberGenerator.generate(),
-                "Transfer to " + to.getAccountNumber());
-        Transaction incoming = new Transaction(to.getAccountNumber(),
-                TransactionType.TRANSFER_IN, amount, toBalance, ReferenceNumberGenerator.generate(),
-                "Transfer from " + from.getAccountNumber());
+
+        Transaction outgoing = new Transaction(
+                from.getAccountNumber(),
+                TransactionType.TRANSFER_OUT,
+                amount,
+                fromBalance,
+                ReferenceNumberGenerator.generate(),
+                "Transfer to " + to.getAccountNumber(),
+                to.getAccountNumber()
+        );
+
+        Transaction incoming = new Transaction(
+                to.getAccountNumber(),
+                TransactionType.TRANSFER_IN,
+                amount,
+                toBalance,
+                ReferenceNumberGenerator.generate(),
+                "Transfer from " + from.getAccountNumber(),
+                from.getAccountNumber()
+        );
 
         try (Connection conn = DatabaseConnection.getConnection()) {
             boolean oldAutoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
+
             try {
                 accountDao.updateBalance(conn, from.getAccountNumber(), fromBalance);
                 accountDao.updateBalance(conn, to.getAccountNumber(), toBalance);
@@ -110,14 +134,24 @@ public class TransactionService {
 
     private Transaction recordBalanceChange(Account account, BigDecimal newBalance,
                                             BigDecimal amount, TransactionType type,
-                                            String remarks) throws SQLException {
+                                            String remarks, String relatedAccountNumber)
+            throws SQLException {
         String reference = ReferenceNumberGenerator.generate();
-        Transaction transaction = new Transaction(account.getAccountNumber(),
-                type, amount, newBalance, reference, remarks);
+
+        Transaction transaction = new Transaction(
+                account.getAccountNumber(),
+                type,
+                amount,
+                newBalance,
+                reference,
+                remarks,
+                relatedAccountNumber
+        );
 
         try (Connection conn = DatabaseConnection.getConnection()) {
             boolean oldAutoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
+
             try {
                 accountDao.updateBalance(conn, account.getAccountNumber(), newBalance);
                 transactionDao.save(conn, transaction);
@@ -129,6 +163,7 @@ public class TransactionService {
                 conn.setAutoCommit(oldAutoCommit);
             }
         }
+
         return transaction;
     }
 
@@ -136,13 +171,18 @@ public class TransactionService {
         if (accountNumber == null || accountNumber.trim().isEmpty()) {
             throw new IllegalArgumentException("Account number is required.");
         }
-        Optional<Account> account = accountDao.findByAccountNumber(accountNumber.trim());
+
+        Optional<Account> account =
+                accountDao.findByAccountNumber(accountNumber.trim());
+
         if (!account.isPresent()) {
             throw new IllegalArgumentException("Account not found: " + accountNumber);
         }
+
         if (account.get().getBalance() == null) {
             throw new IllegalStateException("Account balance is missing.");
         }
+
         return account.get();
     }
 

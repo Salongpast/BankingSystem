@@ -24,10 +24,10 @@ public class AccountService {
 
     public Account createAccount(String accountNumber, String accountName, BigDecimal initialDeposit)
             throws SQLException {
-        if (accountNumber == null || accountNumber.trim().isEmpty()) {
+        if (accountNumber == null || accountNumber.isBlank()) {
             throw new IllegalArgumentException("Account number is required.");
         }
-        if (accountName == null || accountName.trim().isEmpty()) {
+        if (accountName == null || accountName.isBlank()) {
             throw new IllegalArgumentException("Account name is required.");
         }
         if (initialDeposit == null || initialDeposit.compareTo(BigDecimal.ZERO) < 0) {
@@ -58,7 +58,7 @@ public class AccountService {
     }
 
     private void validateAccountNumber(String accountNumber) {
-        if (accountNumber == null || accountNumber.trim().isEmpty()) {
+        if (accountNumber == null || accountNumber.isBlank()) {
             throw new IllegalArgumentException("Account number is required.");
         }
     }

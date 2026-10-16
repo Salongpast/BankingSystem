@@ -16,6 +16,6 @@ public class ReferenceNumberGenerator {
     public static String generate() {
         String timestamp = LocalDateTime.now().format(DATE_FORMAT);
         long seq = SEQUENCE.incrementAndGet();
-        return String.format("%s%s%09d", PREFIX, timestamp, seq);  // 9-digit zero-padded sequence
+        return String.format("%s%s%04d", PREFIX, timestamp, seq);  // 9-digit zero-padded sequence
     }
 }

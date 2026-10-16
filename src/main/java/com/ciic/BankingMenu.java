@@ -1,185 +1,233 @@
-package com.ciic;
+    package com.ciic;
 
-import com.ciic.model.Account;
-import com.ciic.model.Transaction;
-import com.ciic.model.TransactionType;
-import com.ciic.service.AccountService;
-import com.ciic.service.TransactionService;
+    import com.ciic.model.Account;
+    import com.ciic.model.Transaction;
+    import com.ciic.service.AccountService;
+    import com.ciic.service.TransactionService;
 
-import java.math.BigDecimal;
-import java.sql.SQLException;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Scanner;
+    import java.math.BigDecimal;
+    import java.math.RoundingMode;
+    import java.sql.SQLException;
+    import java.time.format.DateTimeFormatter;
+    import java.util.List;
+    import java.util.Optional;
+    import java.util.Scanner;
 
-/** Console menu for the CIIC banking application. */
-public class BankingMenu {
+    public class BankingMenu {
+        private static final String LINE = "─".repeat(56);
+        private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+        private static final String MENU = """
+                %s
+                      BANKING SYSTEM
+                %s
+                    1  Create account
+                    2  View account
+                    3  List accounts
+                    4  Deposit
+                    5  Withdraw
+                    6  Transfer
+                    7  History
+                    0  Exit
+                %s
+                """.formatted("─".repeat(25),"─".repeat(25),"─".repeat(25));
 
-    private static final String LINE = "  " + "─".repeat(52);
-    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final String MENU = """
+        private final Scanner sc = new Scanner(System.in);
+        private final AccountService accountService = new AccountService();
+        private final TransactionService transactionService = new TransactionService();
 
-               BANKING SYSTEM
-            %s
-              1  Create account     5  Withdraw
-              2  View account       6  Transfer
-              3  List accounts      7  History
-              4  Deposit            0  Exit
-            %s
-            """.formatted(LINE, LINE);
-
-    private final Scanner in = new Scanner(System.in);
-    private String operation = "";
-    private final AccountService accounts = new AccountService();
-    private final TransactionService transactions = new TransactionService();
-
-    public void run() {
-        while (true) {
-            System.out.print(MENU);
-            String choice = ask("Select");
-            try {
-                switch (choice) {
-                    case "1" -> createAccount();
-                    case "2" -> viewAccount();
-                    case "3" -> listAccounts();
-                    case "4" -> deposit();
-                    case "5" -> withdraw();
-                    case "6" -> transfer();
-                    case "7" -> history();
-                    case "0" -> {
-                        System.out.println("  Goodbye.");
-                        return;
+        public void run() {
+            while (true) {
+                System.out.print(MENU);
+                String choice = ask("  > ");
+                try {
+                    switch (choice) {
+                        case "1" -> createAccount();
+                        case "2" -> inquireAccount();
+                        case "3" -> listAccounts();
+                        case "4" -> deposit();
+                        case "5" -> withdraw();
+                        case "6" -> transfer();
+                        case "7" -> history();
+                        case "0" -> {
+                            System.out.println("  Goodbye.");
+                            return;
+                        }
+                        default -> System.out.println("Invalid operation selection. Please try again.");
                     }
-                    default -> System.out.println("\n  Invalid option. Choose 0-7.");
+                } catch (RuntimeException | SQLException e) {
+                    System.out.println(" failed: " + e.getMessage());
                 }
-            } catch (SQLException e) {
-                System.out.println("\n  ✗ " + operation + " failed (database error): " + e.getMessage());
-            } catch (RuntimeException e) {
-                System.out.println("\n  ✗ " + operation + " failed: " + e.getMessage());
+                ask("Press Enter to continue... ");
             }
-            ask("Press Enter");
         }
-    }
 
-    // ---- Actions ----------------------------------------------------------------
+        private void createAccount() throws SQLException {
+            System.out.println("Creating account...");
+            String accountNumber = ask("Enter Account Number: ");
+            String accountName = ask("Enter Account Name: ");
+            BigDecimal initialDeposit = money("Enter Initial Deposit: ");
 
-    private void createAccount() throws SQLException {
-        start("Create account", "Opening a new account with an initial deposit.");
-        Account a = accounts.createAccount(ask("Account no."), ask("Holder"), amount("Initial deposit", true));
-        done("Account " + a.getAccountNumber() + " opened for " + a.getAccountName()
-                + " with a balance of " + money(a.getBalance()) + ".");
-    }
+            Account account = accountService.createAccount(accountNumber,accountName,initialDeposit);
 
-    private void viewAccount() throws SQLException {
-        start("View account", "Looking up an account by its number.");
-        String number = ask("Account no.");
-        accounts.findAccount(number).ifPresentOrElse(
-                a -> {
-                    done("Account " + number + " found.");
-                    show("Account", a.getAccountNumber(), "Holder", a.getAccountName(),
-                            "Balance", money(a.getBalance()), "Opened", a.getCreatedAt().format(DATE));
-                },
-                () -> System.out.println("\n  ✗ No account found with number " + number + "."));
-    }
-
-    private void listAccounts() throws SQLException {
-        start("List accounts", "Showing every account on record.");
-        List<Account> list = accounts.getAllAccounts();
-        done("Found " + list.size() + " account(s).");
-        System.out.println(LINE);
-        System.out.printf("  %-14s %-24.24s %12s%n", "Account", "Holder", "Balance");
-        System.out.println(LINE);
-        list.forEach(a -> System.out.printf("  %-14s %-24.24s %12s%n",
-                a.getAccountNumber(), a.getAccountName(), money(a.getBalance())));
-        System.out.println(LINE);
-    }
-
-    private void deposit() throws SQLException {
-        start("Deposit", "Adding money to an account.");
-        Transaction t = transactions.deposit(ask("Account no."), amount("Amount", false));
-        done("Deposited " + money(t.getAmount()) + " into account " + t.getAccountNumber()
-                + ". New balance is " + money(t.getBalanceAfter()) + ".");
-        System.out.println("  Reference: " + t.getReferenceNumber());
-    }
-
-    private void withdraw() throws SQLException {
-        start("Withdraw", "Taking money out of an account.");
-        Transaction t = transactions.withdraw(ask("Account no."), amount("Amount", false));
-        done("Withdrew " + money(t.getAmount()) + " from account " + t.getAccountNumber()
-                + ". New balance is " + money(t.getBalanceAfter()) + ".");
-        System.out.println("  Reference: " + t.getReferenceNumber());
-    }
-
-    private void transfer() throws SQLException {
-        start("Transfer", "Moving money from one account to another.");
-        String from = ask("From account");
-        String to = ask("To account");
-        BigDecimal amt = amount("Amount", false);
-        transactions.transfer(from, to, amt);
-        done("Transferred " + money(amt) + " from account " + from + " to account " + to
-                + ". Both balances were updated.");
-    }
-
-    private void history() throws SQLException {
-        start("History", "Listing all transactions for an account.");
-        String number = ask("Account no.");
-        List<Transaction> list = transactions.getTransactionHistory(number);
-        done("Found " + list.size() + " transaction(s) for account " + number + ".");
-        System.out.println(LINE);
-        System.out.printf("  %-16s %-13s %11s %11s%n", "Date", "Type", "Amount", "Balance");
-        System.out.println(LINE);
-        for (Transaction t : list) {
-            boolean credit = t.getTransactionType() == TransactionType.DEPOSIT
-                    || t.getTransactionType() == TransactionType.TRANSFER_IN;
-            System.out.printf("  %-16s %-13s %11s %11s%n", t.getCreatedAt().format(DATE),
-                    t.getTransactionType().displayName(),
-                    (credit ? "+" : "-") + money(t.getAmount()), money(t.getBalanceAfter()));
+            System.out.println("Account Created.");
+            System.out.println(LINE);
+            System.out.println("Account Number: " + account.getAccountNumber());
+            System.out.println("Account Name: " + account.getAccountName());
+            System.out.println("Account Balance: " + formatMoney(account.getBalance()));
+            System.out.println(LINE);
         }
-        System.out.println(LINE);
-    }
 
-    // ---- Helpers ----------------------------------------------------------------
+        private void inquireAccount() throws SQLException {
 
-    /** Announces which operation is now active. */
-    private void start(String name, String description) {
-        operation = name;
-        System.out.println("  ▸ " + name.toUpperCase() + " — " + description + "\n");
-    }
+            System.out.println("Inquire Account");
+            String accountNumber = ask("Enter Account Number: ");
+            Optional<Account> accountOptional = accountService.findAccount(accountNumber);
 
-    /** States what the active operation has just done. */
-    private void done(String message) {
-        System.out.println("\n  ✓ " + operation + " complete. " + message);
-    }
+            System.out.println(LINE);
+            if (accountOptional.isPresent()) {
+                Account account = accountOptional.get();
 
-    /** Prints label/value pairs between two rules. */
-    private void show(String... pairs) {
-        System.out.println(LINE);
-        for (int i = 0; i < pairs.length; i += 2) {
-            System.out.printf("  %-12s %s%n", pairs[i], pairs[i + 1]);
+                System.out.println("Account Number: " + account.getAccountNumber());
+                System.out.println("Account Name: " + account.getAccountName());
+                System.out.println("Account Balance: " + formatMoney(account.getBalance()));
+
+            } else {
+                System.out.println("Error: Account not found.");
+            }
+            System.out.println(LINE);
         }
-        System.out.println(LINE);
-    }
 
-    private String ask(String label) {
-        System.out.print("  " + label + " › ");
-        return in.nextLine().trim();
-    }
 
-    /** Re-asks until a valid amount with at most 2 decimals is entered. */
-    private BigDecimal amount(String label, boolean allowZero) {
-        while (true) {
-            try {
-                BigDecimal v = new BigDecimal(ask(label).replace(",", ""));
-                if (v.scale() <= 2 && v.signum() >= (allowZero ? 0 : 1)) {
-                    return v.setScale(2);
+        private void listAccounts() throws SQLException {
+            String format = "%-15s %-25s %12.2f%n";
+            String headerFormat = "%-15s %-25s %12s%n";
+            List<Account> accounts = accountService.getAllAccounts();
+
+            System.out.println("List of accounts");
+            System.out.println(LINE);
+            System.out.printf(headerFormat, "Account Number", "Account Name", "Balance");
+            System.out.println(LINE);
+            for (Account account : accounts){
+                System.out.printf(format,
+                        account.getAccountNumber(),
+                        account.getAccountName(),
+                        account.getBalance()
+                );
+            }
+            System.out.println(LINE);
+
+        }
+
+        private void deposit() throws SQLException {
+            System.out.println("Deposit to Account.");
+            System.out.println(LINE);
+            String accountNumber = ask("Enter Account Number: ");
+            BigDecimal amount = money("Enter Deposit Amount: ");
+            System.out.println(LINE);
+            Transaction t = transactionService.deposit(accountNumber,amount);
+            System.out.println("Deposited " + amount + " into account " + t.getAccountNumber()
+                    + ". New balance is " + formatMoney(t.getBalanceAfter()) + ".");
+            System.out.println(LINE);
+        }
+
+        private void withdraw() throws SQLException {
+            System.out.println("Taking money out of an account.");
+            System.out.println(LINE);
+            String accountNumber = ask("Enter Account Number: ");
+            BigDecimal amount = money("Enter Withdraw Amount: ");
+            System.out.println(LINE);
+            Transaction t = transactionService.withdraw(accountNumber,amount);
+            System.out.println("Withdrew  " + amount + " into account " + t.getAccountNumber()
+                    + ". New balance is " + formatMoney(t.getBalanceAfter()) + ".");
+            System.out.println(LINE);
+        }
+
+        private void transfer() throws SQLException {
+            System.out.println("Transfer between accounts.");
+            System.out.println(LINE);
+
+            String fromAccountNumber = ask("Enter Source Account Number: ");
+            String toAccountNumber = ask("Enter Destination Account Number: ");
+            BigDecimal amount = money("Enter Transfer Amount: ");
+
+            System.out.println(LINE);
+            transactionService.transfer(fromAccountNumber, toAccountNumber, amount);
+
+            System.out.println("Successfully transferred " + formatMoney(amount)
+                    + " from account " + fromAccountNumber
+                    + " to account " + toAccountNumber + ".");
+            System.out.println(LINE);
+        }
+
+        private void history() throws SQLException {
+            System.out.println("Transaction History");
+            System.out.println(LINE + "─".repeat(12));
+
+            String accountNumber = ask("Enter Account Number: ");
+            List<Transaction> transactions =
+                    transactionService.getTransactionHistory(accountNumber);
+
+            if (transactions.isEmpty()) {
+                System.out.println("No transactions found for account " + accountNumber + ".");
+                System.out.println(LINE);
+                return;
+            }
+
+            String headerFormat = "%-18s %-15s %8s %8s %-18s%n";
+            String rowFormat =    "%-18s %-15s %8s %8s %-18s%n";
+
+            System.out.printf(headerFormat, "Date", "Type", "Amount", "Balance", "Related Account");
+            System.out.println(LINE + "─".repeat(12));
+
+            for (Transaction transaction : transactions) {
+                String relatedAccount = transaction.getRelatedAccountNumber();
+
+                if (relatedAccount == null || relatedAccount.isBlank()) {
+                    relatedAccount = "-";
                 }
-            } catch (NumberFormatException ignored) {
-            }
-            System.out.println("  Enter a valid amount, e.g. 250.00");
-        }
-    }
 
-    private static String money(BigDecimal v) {
-        return v == null ? "0.00" : String.format("%,.2f", v);
+                String createdAt = transaction.getCreatedAt() == null
+                        ? "-"
+                        : DATE.format(transaction.getCreatedAt());
+
+                System.out.printf(rowFormat,
+                        createdAt,
+                        transaction.getTransactionType(),
+                        formatMoney(transaction.getAmount()),
+                        formatMoney(transaction.getBalanceAfter()),
+                        relatedAccount);
+            }
+
+            System.out.println(LINE + "─".repeat(12));
+        }
+
+        private BigDecimal formatMoney(BigDecimal money){
+            return money.setScale(2, RoundingMode.HALF_UP);
+        }
+
+        private String ask(String label){
+            System.out.print(label);
+            return sc.nextLine();
+        }
+
+        private BigDecimal money(String label) {
+            while (true) {
+                System.out.print(label);
+                String input = sc.nextLine();
+
+                try {
+                    BigDecimal money = new BigDecimal(input);
+
+                    if (money.compareTo(BigDecimal.ZERO) < 0) {
+                        System.out.println("Amount cannot be negative.");
+                        continue;
+                    }
+
+                    return money;
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid amount. Please enter a valid number.");
+                }
+            }
+        }
+
     }
-}

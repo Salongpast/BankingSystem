@@ -10,7 +10,6 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.logging.Level;
 
 public class AccountDaoImpl implements AccountDao {
 
@@ -38,7 +37,6 @@ public class AccountDaoImpl implements AccountDao {
             preparedStatement.setBigDecimal(3, account.getBalance());
             preparedStatement.executeUpdate();
 
-            // Read back the auto-generated PK and assign it to the domain object
             try (ResultSet keys = preparedStatement.getGeneratedKeys()) {
                 if (keys.next()) {
                     account.setId(keys.getLong(1));

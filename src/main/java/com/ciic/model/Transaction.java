@@ -1,7 +1,6 @@
 package com.ciic.model;
 
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -20,15 +19,18 @@ public class Transaction {
     private String referenceNumber;
     private String remarks;
     private LocalDateTime createdAt;
+    private String relatedAccountNumber;
 
     public Transaction(String accountNumber, TransactionType transactionType,
                        BigDecimal amount, BigDecimal balanceAfter,
-                       String referenceNumber, String remarks) {
+                       String referenceNumber, String remarks,
+                       String relatedAccountNumber) {
         this.accountNumber = accountNumber;
         this.transactionType = transactionType;
         this.amount = amount;
         this.balanceAfter = balanceAfter;
         this.referenceNumber = referenceNumber;
         this.remarks = remarks;
+        this.relatedAccountNumber = relatedAccountNumber;
     }
 }

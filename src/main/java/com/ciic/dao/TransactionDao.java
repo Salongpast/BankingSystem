@@ -1,10 +1,8 @@
 package com.ciic.dao;
 
-import com.ciic.model.Account;
 import com.ciic.model.Transaction;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
