@@ -1,0 +1,36 @@
+package com.ciic.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Transaction {
+    private Long transactionId;
+    private String accountNumber;
+    private TransactionType transactionType;
+    private BigDecimal amount;
+    private BigDecimal balanceAfter;
+    private String referenceNumber;
+    private String remarks;
+    private LocalDateTime createdAt;
+    private String relatedAccountNumber;
+
+    public Transaction(String accountNumber, TransactionType transactionType,
+                       BigDecimal amount, BigDecimal balanceAfter,
+                       String referenceNumber, String remarks,
+                       String relatedAccountNumber) {
+        this.accountNumber = accountNumber;
+        this.transactionType = transactionType;
+        this.amount = amount;
+        this.balanceAfter = balanceAfter;
+        this.referenceNumber = referenceNumber;
+        this.remarks = remarks;
+        this.relatedAccountNumber = relatedAccountNumber;
+    }
+}
